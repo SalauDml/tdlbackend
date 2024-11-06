@@ -1,1 +1,1 @@
-web: gunicorn tdlbackend.wsgi
+gunicorn tdlbackend.wsgi:application

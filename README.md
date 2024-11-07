@@ -93,6 +93,9 @@ The project is deployed on Render, a cloud hosting provider that offers a simple
 Django allows the developer to write database code in the python language but by the addition of the import of the django rest framework the database code can be serialized into JSON data and JSON data can be 
 converted back into Database code.
 
+In order to use the task endpoints, the user has to firstly be signed as it is a protected route. 
+
+User registers on the register endpoint then logs in on the login enpoint and receives an access and refresh token. The access token is used on the protected routes and the refresh token is used to refresh the access token after expiry.
 
 
 

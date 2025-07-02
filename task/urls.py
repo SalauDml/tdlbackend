@@ -1,7 +1,5 @@
 from django.urls import path,include
-from .views import TaskView,TokenView,SpecificTaskView
+from .views import TaskView
 urlpatterns = [
     path('',TaskView.as_view()),
-    path('<int:id>',SpecificTaskView.as_view()),
-    path('token',TokenView.as_view())
 ]

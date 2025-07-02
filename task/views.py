@@ -10,67 +10,166 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.tokens import AccessToken,RefreshToken
 from django.contrib.auth.models import User
 from django.http import Http404
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 # Create your views here.
 
-class SpecificTaskView(APIView):
-    def get(self,request,id):
-        try:
-            task = Task.objects.get(id = id)
-        except Task.DoesNotExist:
-            raise(Http404("Does Not Exist"))
-        serializer = TaskSerializer(task,many = False)
-        return Response(serializer.data,status=status.HTTP_200_OK)
+AUTH_HEADER = openapi.Parameter(
+    'Authorization',
+    openapi.IN_HEADER,
+    description="Bearer <access_token>",
+    type=openapi.TYPE_STRING,
+    required=True
+)
     
-class TaskView (APIView):
-    # permission_classes = [permissions.AllowAny]
-    def get(self,request):
-        task = Task.objects.all()
-        serializer = TaskSerializer(task,many = True)
-        return Response(serializer.data,status=status.HTTP_200_OK)
-    
-    def post (self,request):
-        # data = request.data
-        serializer = TaskSerializer(data = request.data)
-        # serializer.save(user = self.request.user)
+class TaskView(APIView):
+    """
+    List all tasks, create, update, or delete a task.
+    """
+    # permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Retrieve all tasks belonging to the authenticated user. Optional query parameters: status, priority, due_date.",
+        manual_parameters=[
+            AUTH_HEADER,
+            openapi.Parameter(
+                'status',
+                openapi.IN_QUERY,
+                description="Filter tasks by completion status (true/false)",
+                type=openapi.TYPE_BOOLEAN,
+                required=False
+            ),
+            openapi.Parameter(
+                'priority',
+                openapi.IN_QUERY,
+                description="Filter tasks by priority (Low, Medium, High)",
+                type=openapi.TYPE_STRING,
+                enum=['Low', 'Medium', 'High'],
+                required=False
+            ),
+            openapi.Parameter(
+                'due_date',
+                openapi.IN_QUERY,
+                description="Filter tasks due before this date (YYYY-MM-DD)",
+                type=openapi.TYPE_STRING,
+                format='date',
+                required=False
+            ),
+        ],
+        responses={200: openapi.Response('List of tasks', TaskSerializer(many=True))}
+    )
+    def get(self, request):
+        task = Task.objects.all().filter(user=request.user)
+        state = request.query_params.get('status', None)
+        priority = request.query_params.get('priority', None)
+        due_date = request.query_params.get('due_date', None)
+        if state is not None:
+            task = task.filter(task_complete=status.lower() == 'true')
+        if priority:
+            task = task.filter(priority=priority)
+        if due_date:
+            task = task.filter(due_date__lt=due_date)
+
+        serializer = TaskSerializer(task, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_description="Create a new task.",
+        manual_parameters=[AUTH_HEADER],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['title', 'description', 'priority', 'task_complete', 'due_date'],
+            properties={
+                'title': openapi.Schema(type=openapi.TYPE_STRING, description='Title of the task'),
+                'description': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the task'),
+                'priority': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Priority of the task (Low, Medium, High)',
+                    enum=['Low', 'Medium', 'High']
+                ),
+                'task_complete': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Is the task complete?'),
+                'due_date': openapi.Schema(type=openapi.TYPE_STRING, description='Due date in YYYY-MM-DD format'),
+            },
+            example={
+                "title": "Buy groceries",
+                "description": "Milk, Bread, Eggs",
+                "priority": "Medium",
+                "task_complete": False,
+                "due_date": "2025-07-10"
+            }
+        ),
+        responses={201: openapi.Response('Task created successfully')}
+    )
+    def post(self, request):
+        serializer = TaskSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             serializer.save(user=request.user)
             return Response('Request received successfully', status=status.HTTP_201_CREATED)
         else:
-            return Response(f'{serializer.errors}',status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(f'{serializer.errors}', status=status.HTTP_400_BAD_REQUEST)
 
-    def patch(self,request):
-        id = self.request.query_params.get('id',"not available")
-        task = Task.objects.get(id = id)
-        serializer = TaskSerializer(task,data = request.data,partial = True)
+    @swagger_auto_schema(
+        operation_description="Partially update a task.",
+        manual_parameters=[AUTH_HEADER],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'title': openapi.Schema(type=openapi.TYPE_STRING, description='Title of the task'),
+                'description': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the task'),
+                'priority': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Priority of the task (Low, Medium, High)',
+                    enum=['Low', 'Medium', 'High']
+                ),
+                'task_complete': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Is the task complete?'),
+                'due_date': openapi.Schema(type=openapi.TYPE_STRING, description='Due date in YYYY-MM-DD format'),
+            },
+            example={
+                "title": "Buy groceries and fruits",
+                "description": "Milk, Bread, Eggs, Apples",
+                "priority": "High",
+                "task_complete": True,
+                "due_date": "2025-07-12"
+            }
+        ),
+        responses={202: openapi.Response('Task updated successfully')}
+    )
+    def patch(self, request):
+        try:
+            task = Task.objects.get(id=request.data.get('id'))
+        except Task.DoesNotExist:
+            raise Http404("Does not Exist")
+        serializer = TaskSerializer(task, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response("Updated Successfully", status=status.HTTP_202_ACCEPTED)
         else:
-            return Response(f"${serializer.errors}", status=status.HTTP_400_BAD_REQUEST)
-    
-    def delete(self,request,id):
+            return Response(f"{serializer.errors}", status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_description="Delete a task by its ID.",
+        manual_parameters=[
+            AUTH_HEADER,
+            openapi.Parameter('id', openapi.IN_PATH, description="ID of the task to delete", type=openapi.TYPE_INTEGER)
+        ],
+        responses={204: openapi.Response('Task deleted successfully')}
+    )
+    def delete(self, request):
         try:
-            # id = self.request.query_params.get('id',"not available")
-            task = Task.objects.get(id = id)
+            task = Task.objects.get(id=request.data.get('id'))
         except Task.DoesNotExist:
             raise Http404("Does not Exist")
         task.delete()
-        return Response({"message": "Deleted succesfully"},status=status.HTTP_204_NO_CONTENT)
-
-class TokenView(APIView):
-    permission_classes = [permissions.AllowAny]
-    user = User.objects.first()
-    def get(self,request):
-        refresh = RefreshToken.for_user(self.user)
-        return Response(str(refresh))
-
-    
+        return Response({"message": "Deleted succesfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
 
 
-            
+
+
+
+
 
 
 

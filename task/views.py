@@ -110,11 +110,13 @@ class TaskView(APIView):
             return Response(f'{serializer.errors}', status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(
-        operation_description="Partially update a task.",
+        operation_description="Partially update a task. Provide the task ID and any fields to update.",
         manual_parameters=[AUTH_HEADER],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
+            required=['id'],
             properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the task to update'),
                 'title': openapi.Schema(type=openapi.TYPE_STRING, description='Title of the task'),
                 'description': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the task'),
                 'priority': openapi.Schema(
@@ -126,6 +128,7 @@ class TaskView(APIView):
                 'due_date': openapi.Schema(type=openapi.TYPE_STRING, description='Due date in YYYY-MM-DD format'),
             },
             example={
+                "id": 1,
                 "title": "Buy groceries and fruits",
                 "description": "Milk, Bread, Eggs, Apples",
                 "priority": "High",
@@ -148,11 +151,18 @@ class TaskView(APIView):
             return Response(f"{serializer.errors}", status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(
-        operation_description="Delete a task by its ID.",
-        manual_parameters=[
-            AUTH_HEADER,
-            openapi.Parameter('id', openapi.IN_PATH, description="ID of the task to delete", type=openapi.TYPE_INTEGER)
-        ],
+        operation_description="Delete a task by its ID. Provide the task ID in the request body.",
+        manual_parameters=[AUTH_HEADER],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['id'],
+            properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the task to delete'),
+            },
+            example={
+                "id": 1
+            }
+        ),
         responses={204: openapi.Response('Task deleted successfully')}
     )
     def delete(self, request):

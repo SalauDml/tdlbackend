@@ -23,11 +23,11 @@ from drf_yasg import openapi
 
 schema_view = get_schema_view(
    openapi.Info(
-      title="My API",
+      title="My To Do List API",
       default_version='v1',
       description="API documentation",
       terms_of_service="https://www.example.com/terms/",
-      contact=openapi.Contact(email="contact@example.com"),
+      contact=openapi.Contact(email="damolasalau23@gmail.com"),
       license=openapi.License(name="BSD License"),
    ),
    public=True,
